@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 import plotly.graph_objects as go
+import re
 
 st.set_page_config(page_title="OHLC CSV Viewer", layout="wide")
 st.title("OHLC CSV Viewer & Candlestick Chart")
@@ -12,7 +13,6 @@ def read_csv_auto_sep(uploaded_file):
         uploaded_file.seek(0)
         try:
             df = pd.read_csv(uploaded_file, sep=sep)
-            # If only one column, probably wrong sep
             if df.shape[1] < 2:
                 continue
             return df
@@ -34,6 +34,24 @@ except Exception as e:
 
 # Clean column names
 df.columns = [col.strip() for col in df.columns]
+st.write("Columns detected:", df.columns.tolist())  # Show columns for debugging
+
+# Try to auto-detect and rename columns for candlestick
+col_map = {}
+for col in df.columns:
+    col_clean = col.strip().lower()
+    if 'date' in col_clean:
+        col_map[col] = 'DateTime'
+    elif re.match(r'open', col_clean):
+        col_map[col] = 'Open'
+    elif re.match(r'high', col_clean):
+        col_map[col] = 'High'
+    elif re.match(r'low', col_clean):
+        col_map[col] = 'Low'
+    elif re.match(r'close', col_clean):
+        col_map[col] = 'Close'
+
+df = df.rename(columns=col_map)
 
 st.success(f"Loaded {uploaded.name} — {df.shape[0]:,} rows × {df.shape[1]:,} columns")
 st.dataframe(df, use_container_width=True)
@@ -59,7 +77,7 @@ if all(col in df.columns for col in ohlc_cols):
     )
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("Candlestick chart not shown: Data must have columns DateTime, Open, High, Low, Close.")
+    st.info(f"Candlestick chart not shown: Data must have columns {ohlc_cols}. Your columns: {df.columns.tolist()}")
 
 # Summary
 with st.expander("Summary"):
